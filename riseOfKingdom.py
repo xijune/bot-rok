@@ -204,6 +204,3 @@ def Cadeau():
         pix = Pix(96, 396)
         if pix <= NOTIFMAX and pix >= NOTIFMIN:
             Tap('170 472')
-
-while True:
-    Collecte()

@@ -1,6 +1,6 @@
 import time
 import tkinter as tk
-from riseOfKingdom import Exploration
+from riseOfKingdom import *
 
 def WindowsForm():
     #Création du Forms
@@ -12,15 +12,21 @@ def WindowsForm():
     lbl.pack()
     
     def Selection():
-        if (ckb1.get() == 1):
-            time.sleep(10)
-            Exploration()
+        while (ckb1.get() == 1):
+            Collecte()
+            window.update()
+
+        while (ckb2.get() == 1):
+            Archer()
             window.update()
     
     ckb1 = tk.IntVar()
-    ckb2 = tk.IntVar()
-    c1 = tk.Checkbutton(window, text='Exploration',variable=ckb1, onvalue=1, offvalue=0, command=Selection)
+    c1 = tk.Checkbutton(window, text='Collection',variable=ckb1, onvalue=1, offvalue=0, command=Selection)
     c1.pack()
+
+    ckb2 = tk.IntVar()
+    c2 = tk.Checkbutton(window, text='Formation Archer',variable=ckb2, onvalue=1, offvalue=0, command=Selection)
+    c2.pack()
 
     window.mainloop()
 
