@@ -1,15 +1,18 @@
+import collections
 from ppadb.client import Client
 from PIL import Image
 import time
 import tkinter as tk
-import cv2 as cv
+import cv2
 import numpy as np
-from matplotlib import pyplot as plt
+import re
+
+
+SENSI =  0.9841
 
 TRAPIDE = .05
 TLENT = 3
 
-#RGBA des pixels
 MAISMIN = (240, 198, 32, 255)
 MAISMAX = (255, 218, 52, 255)
 BOISMIN = (213, 150, 100, 255)
@@ -65,35 +68,42 @@ def ScreenShot():
     image = Adb().screencap()
     with open('screen.png', 'wb') as f:
         f.write(image)
-    image = Image.open('screen.png')
+    image = 'screen.png'
     return image
 
-def ImgRecherche():
-    img = cv.imread('messi5.jpg',0)
-    img2 = img.copy()
-    template = cv.imread('template.jpg',0)
-    w, h = template.shape[::-1]
-    # All the 6 methods for comparison in a list
-    methods = ['cv.TM_CCOEFF_NORMED']
-    for meth in methods:
-        img = img2.copy()
-        method = eval(meth)
-        # Apply template Matching
-        res = cv.matchTemplate(img,template,method)
-        min_val, max_val, min_loc, max_loc = cv.minMaxLoc(res)
-        # If the method is TM_SQDIFF or TM_SQDIFF_NORMED, take minimum
-        if method in [cv.TM_SQDIFF, cv.TM_SQDIFF_NORMED]:
-            top_left = min_loc
-        else:
-            top_left = max_loc
-        bottom_right = (top_left[0] + w, top_left[1] + h)
-        cv.rectangle(img,top_left, bottom_right, 255, 2)
-        plt.subplot(121),plt.imshow(res,cmap = 'gray')
-        plt.title('Matching Result'), plt.xticks([]), plt.yticks([])
-        plt.subplot(122),plt.imshow(img,cmap = 'gray')
-        plt.title('Detected Point'), plt.xticks([]), plt.yticks([])
-        plt.suptitle(meth)
-        plt.show()
+def ImgRecherche(obj, sensibilite):
+    image = cv2.imread(ScreenShot(), cv2.IMREAD_COLOR )
+    template = cv2.imread(obj, cv2.IMREAD_COLOR)
+    h, w = template.shape[:2]
+
+    methode = cv2.TM_CCORR_NORMED
+
+    res = cv2.matchTemplate(image, template, methode)
+    res_h, res_w = res.shape[:2]
+
+    #Initialisation du max_val pour commencer la boucle
+    max_val = 1
+    centers = []
+    while max_val > sensibilite:
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
+        if max_val > sensibilite:
+            centers.append( (max_loc[0] + w//2, max_loc[1] + h//2) )
+
+            x1 = max(max_loc[0] - w//2, 0)
+            y1 = max(max_loc[1] - h//2, 0)
+
+            x2 = min(max_loc[0] + w//2, res_w)
+            y2 = min(max_loc[1] + h//2, res_h)
+
+            res[y1:y2, x1:x2] = 0
+
+            image = cv2.rectangle(image,(max_loc[0],max_loc[1]), (max_loc[0]+w+1, max_loc[1]+h+1), (0,255,0) )
+
+    centers = re.sub("[^0-9]", " ", str(centers))
+
+    cv2.imwrite('output.png', image)
+
+    return centers
 
 def Pix(cordPixX, cordPixY):
     #Prend le RGBA du pixel de la coordonée
@@ -133,16 +143,9 @@ def Exploration():
     time.sleep(TLENT)
 
 def Collecte():
-    #Si correcte, collecte
-    pix = Pix(983, 671)
-    if pix <= MAISMAX and pix >= MAISMIN:
-        Tap('983 671')
-        print('Collecte du maîs')
+    Tap(ImgRecherche("mais.png", SENSI))
 
-    pix = Pix(827,794)
-    if pix <= BOISMAX and pix >= BOISMIN:
-        Tap('827 794')
-        print('Collecte du bois')
+    Tap(ImgRecherche("bois.png", SENSI))
 
     print('Collection terminee')
 
@@ -175,32 +178,10 @@ def Infenterie():
         pass
 
 def Archer():
-    #Si correcte,
-    pix = Pix(876, 572)
-    if pix <= FORMATIONJOURMAX and pix >= FORMATIONJOURMIN or pix <= AFORMATIONNUITMAX and pix >= AFORMATIONNUITMIN:
-        print('Lancement archer')
-
-        pix = Pix(957, 396)
-        if pix <= PRETMAX and pix >= PRETMIN:
-            Tap('962 484')
-            time.sleep(TLENT)
-            Tap('962 484')
-            time.sleep(TRAPIDE)
-            Tap('1172 694')
-            time.sleep(TRAPIDE)
-            Tap('1480 890')
-
-        #Sinon, juste relance
-        else:
-            Tap('962 484')
-            time.sleep(TRAPIDE)
-            Tap('1172 694')
-            time.sleep(TRAPIDE)
-            Tap('1480 890')
-
-    else:
-        print('Archer deja en formation')
-        pass
+    Tap(ImgRecherche("archerfini.png", SENSI))
+    Tap(ImgRecherche("archer.png", SENSI))
+    Tap(ImgRecherche("formation.png", SENSI))
+    Tap(ImgRecherche("train.png", SENSI))
 
 def Cadeau():
     pix = Pix(105, 208)
@@ -225,6 +206,4 @@ def Cadeau():
             Tap('170 472')
 
 while True:
-    Archer()
-    Infenterie()
-    Exploration()
+    Collecte()
