@@ -1,22 +1,16 @@
-import collections
 from ppadb.client import Client
 from PIL import Image
 import time
 import tkinter as tk
-import cv2
+import cv2 as cv
 import numpy as np
 import re
 
 
-SENSI =  0.9841
+SENSI =  0.949
 
-TRAPIDE = .05
+TRAPIDE = 1
 TLENT = 3
-
-MAISMIN = (240, 198, 32, 255)
-MAISMAX = (255, 218, 52, 255)
-BOISMIN = (213, 150, 100, 255)
-BOISMAX = (233, 170, 120, 255)
 
 BOUTTONHOME = (113, 229, 252, 255)
 
@@ -68,40 +62,31 @@ def ScreenShot():
     image = Adb().screencap()
     with open('screen.png', 'wb') as f:
         f.write(image)
-    image = 'screen.png'
+    image = cv.imread('screen.png')
     return image
 
-def ImgRecherche(obj, sensibilite):
-    image = cv2.imread(ScreenShot(), cv2.IMREAD_COLOR )
-    template = cv2.imread(obj, cv2.IMREAD_COLOR)
-    h, w = template.shape[:2]
-
-    methode = cv2.TM_CCORR_NORMED
-
-    res = cv2.matchTemplate(image, template, methode)
-    res_h, res_w = res.shape[:2]
-
-    #Initialisation du max_val pour commencer la boucle
-    max_val = 1
+def ImgRecherche(template):
+    target = ScreenShot()
+    template = cv.imread(template)
+    time.sleep(TRAPIDE)
+    method = [cv.TM_SQDIFF_NORMED, cv.TM_CCORR_NORMED]
+    th, tw = template.shape[:2]
     centers = []
-    while max_val > sensibilite:
-        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
-        if max_val > sensibilite:
-            centers.append( (max_loc[0] + w//2, max_loc[1] + h//2) )
+    for md in method:
+        result = cv.matchTemplate(target, template, md)
+        min_val, max_val, min_loc, max_loc = cv.minMaxLoc(result)
+        if md == cv.TM_SQDIFF_NORMED:
+            tl = min_loc
+        else:
+            tl = max_loc
+        br = (tl[0]+tw, tl[1]+th)
+        cv.rectangle(target, tl, br, (0,0,255))
 
-            x1 = max(max_loc[0] - w//2, 0)
-            y1 = max(max_loc[1] - h//2, 0)
+    centers.append((max_loc[0] + tw//2, max_loc[1] + th//2))
 
-            x2 = min(max_loc[0] + w//2, res_w)
-            y2 = min(max_loc[1] + h//2, res_h)
-
-            res[y1:y2, x1:x2] = 0
-
-            image = cv2.rectangle(image,(max_loc[0],max_loc[1]), (max_loc[0]+w+1, max_loc[1]+h+1), (0,255,0) )
+    cv.imwrite('output.png', target)
 
     centers = re.sub("[^0-9]", " ", str(centers))
-
-    cv2.imwrite('output.png', image)
 
     return centers
 
@@ -120,32 +105,18 @@ def Base():
         pass
 
 def Exploration():
-    #Si correcte, fait une exploration
-    pix = Pix(1175, 475)
-    if pix <= EXPLORERJOURMAX and pix >= EXPLORERJOURMIN or pix <= EXPLORERNUITMAX and pix >= EXPLORERNUITMIN:
-        Tap('1160 610')
-        time.sleep(TRAPIDE)
-        Tap('1360 810')
-        time.sleep(TRAPIDE)
-        Tap('1500 480')
-        time.sleep(TLENT)
-        Tap('1200 710')
-        time.sleep(TRAPIDE)
-        Tap('1500 250')
-        time.sleep(TRAPIDE)
-        Tap('76 981')
-        time.sleep(TLENT)
-        print('Retour à la base')
-
-    else:
-        print('Aucun exploreur disponible')
-        pass
+    Tap(ImgRecherche('explorer.png'))
+    time.sleep(TRAPIDE)
+    Tap(ImgRecherche('loupe.png'))
+    time.sleep(TRAPIDE)
+    Tap(ImgRecherche('btnExplorer.png'))
     time.sleep(TLENT)
 
-def Collecte():
-    Tap(ImgRecherche("mais.png", SENSI))
 
-    Tap(ImgRecherche("bois.png", SENSI))
+def Collecte():
+    Tap(ImgRecherche('mais.png'))
+
+    Tap(ImgRecherche('bois.png'))
 
     print('Collection terminee')
 
@@ -178,10 +149,13 @@ def Infenterie():
         pass
 
 def Archer():
-    Tap(ImgRecherche("archerfini.png", SENSI))
-    Tap(ImgRecherche("archer.png", SENSI))
-    Tap(ImgRecherche("formation.png", SENSI))
-    Tap(ImgRecherche("train.png", SENSI))
+    Tap(ImgRecherche('archerfini.png'))
+    time.sleep(TRAPIDE)
+    Tap(ImgRecherche('archer.png'))
+    time.sleep(TRAPIDE)
+    Tap(ImgRecherche('formation.png'))
+    time.sleep(TLENT)
+    Tap(ImgRecherche('train.png'))
 
 def Cadeau():
     pix = Pix(105, 208)
@@ -204,3 +178,4 @@ def Cadeau():
         pix = Pix(96, 396)
         if pix <= NOTIFMAX and pix >= NOTIFMIN:
             Tap('170 472')
+
