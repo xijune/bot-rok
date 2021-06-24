@@ -1,111 +1,126 @@
 from ppadb.client import Client
-from PIL import ImageGrab
 import time
 import cv2 as cv
 import numpy as np
 import re
 import win32gui
+import pyautogui
 
 # Addition pour cliquer à la bonne place
-RESX = 195
-RESY = 180
+# (1920 / 100) - (1473 / 100) * 23.28125
+# 2.51
+# RESY = 2.5164
 
-TRAPIDE = 0.5
-TLENT = 4
+TRAPIDE = 2.5
+TLENT = 6
 
-def Adb():
-    # Connection sur l'emulateur avec l'ip et port de base
-    adb = Client(host='127.0.0.1', port=5037)
-    devices = adb.devices()
-    if len(devices) == 0:
-        print ('pas de device attaché')
-        quit()
-    device = devices[0]
-    return device
+# Connection sur l'emulateur avec l'ip et port de base
+adb = Client(host='127.0.0.1', port=5037)
+devices = adb.devices()
+if len(devices) == 0:
+    print ('pas de device attaché')
+    quit()
+device = devices[0]
 
 
 def Tap(cordsTap):
     #Tap a la coordonnee choisi
-    tap = Adb().shell('input touchscreen tap ' + cordsTap)
+    tap = device.shell('input touchscreen tap ' + str(cordsTap))
     return tap
 
 
 def ScreenShot():
-    windows_list = []
-    toplist = []
-    def enum_win(hwnd, result):
-        win_text = win32gui.GetWindowText(hwnd)
-        windows_list.append((hwnd, win_text))
-    win32gui.EnumWindows(enum_win, toplist)
+    hwnd = win32gui.FindWindow(None, 'BlueStacks')
 
-    game_hwnd = 0
-    for (hwnd, win_text) in windows_list:
-        if "BlueStacks" in win_text:
-            game_hwnd = hwnd
+    win32gui.ShowWindow(hwnd, 9) # Un-minimize
+    win32gui.SetForegroundWindow(hwnd)
 
-    win32gui.ShowWindow(game_hwnd, 9) # Un-minimize
-    win32gui.ShowWindow(game_hwnd, 5)
-    win32gui.SetForegroundWindow(game_hwnd)
-    time.sleep(1)
+    x, y, x1, y1 = win32gui.GetClientRect(hwnd)
+    x, y = win32gui.ClientToScreen(hwnd, (x, y))
+    x1, y1 = win32gui.ClientToScreen(hwnd, (x1 - x, y1 - y))
 
-    position = win32gui.GetWindowRect(game_hwnd)
-
-    position = (position[0], position[1] + 33, position[2] - 33, position[3])
-
-    screenshot = ImageGrab.grab(position)
+    screenshot = pyautogui.screenshot(region=(x, y + 33, (x1 - 33), y1 - 33))
     screenshot = np.array(screenshot)
     screenshot = cv.cvtColor(screenshot, cv.COLOR_RGB2BGR)
     cv.imwrite('screenshot.png', screenshot)
 
 
-def ImgRecherche(template, threshold):
+def ImgRecherche(template, thresholdJour):
     ScreenShot()
     target = cv.imread('screenshot.png')
     template = cv.imread('images/' + template)
 
-    time.sleep(1)
     md = cv.TM_CCOEFF_NORMED
     th, tw = template.shape[:2]
-    centers = []
 
     result = cv.matchTemplate(target, template, md)
     min_val, max_val, min_loc, max_loc = cv.minMaxLoc(result)
     tl = max_loc
     br = (tl[0]+tw, tl[1]+th)
-    centers.append((max_loc[0] + tw//2 + RESX, max_loc[1] + th//2 + RESY))
 
-    centers = re.sub("[^0-9]", " ", str(centers))
-    
-    print(max_val)
-    cv.rectangle(target, tl, br, (0,0,255))
-    cv.imshow('matches', target)
-    cv.waitKey(0)
-    if max_val > threshold:
-        print(centers)
+    # print(max_val)
+    # cv.rectangle(target, tl, br, (0,0,255))
+    # cv.imshow('matches', target)
+    # cv.waitKey(0)
+
+    centerXEmu = (max_loc[0] + tw//2)
+    centerX = (centerXEmu / 14.73)
+    centerX =  centerXEmu + (4.4736 * centerX)
+
+    centerYEmu = (max_loc[1] + th//2)
+    centerY = (centerYEmu / 8.29)
+    centerY =  centerYEmu + (2.5164 * centerY)
+
+    centers = str(centerX) + ' ' + str(centerY)
+
+    if max_val > thresholdJour:
+        # print(centers)
         return centers
 
-    if not tl[0] in range(10, 40) or tl[1] > 20:
-        return ''
+    else:
+        return " "
 
 
 def Exploration():
-    Tap(ImgRecherche('explorer.png'))
-    time.sleep(TRAPIDE)
-    Tap(ImgRecherche('loupe.png'))
-    time.sleep(TRAPIDE)
-    Tap(ImgRecherche('btnExplorer.png'))
-    time.sleep(TLENT)
-    Tap(ImgRecherche('btnExplorer.png'))
-    time.sleep(TRAPIDE)
-    Tap(ImgRecherche('btnExplorer.png'))
+    cord_text = ImgRecherche('explorer.png', 0.73)
+    cord_bat = ImgRecherche('batExplorer.png', 0.8)
+    if cord_text != " " and cord_bat != " ":
+        print('Exploration en cours')
+        Tap(cord_bat)
+        time.sleep(TRAPIDE)
+        Tap(ImgRecherche('loupe.png', 0.98))
+        time.sleep(TRAPIDE)
+        cord_btn = ImgRecherche('btnExplorer.png', 0.98)
+        if cord_btn != " ":
+            Tap(cord_btn)
+            time.sleep(TLENT)
+            Tap(ImgRecherche('btnExplorer.png', 0.95))
+            time.sleep(TRAPIDE)
+            Tap(ImgRecherche('btnEnvoyer.png', 0.94))
+            time.sleep(TRAPIDE)
+            Tap(ImgRecherche('btnRentre.png', 0.98))
+            print('Exploration terminé, Retour à la base')
+            time.sleep(TLENT)
+        else:
+            pass
+    else: 
+        print('Aucune exploration disponible')
+    
 
 
 def Collecte():
-    Tap(ImgRecherche('mais.png'))
+    cord_mais = ImgRecherche('mais.png', 0.7)
+    if cord_mais != " ":
+        Tap(cord_mais)
+        print('Collection maîs')
 
-    Tap(ImgRecherche('bois.png'))
-
-    print('Collection terminee')
+    cord_bois = ImgRecherche('bois.png', 0.7)
+    if cord_bois != " ":
+        Tap(cord_bois)
+        print('Collection bois')
+    
+    else:
+        print('Aucune collection disponible')
 
 
 def Infenterie():
@@ -113,16 +128,28 @@ def Infenterie():
 
 
 def Archer():
-    Tap(ImgRecherche('archer.png', 0.469))
-    time.sleep(TRAPIDE)
-    Tap(ImgRecherche('archerPause.png', 0.55))
-    time.sleep(TRAPIDE)
-    Tap(ImgRecherche('formation.png', 0.99))
-    time.sleep(TLENT)
-    Tap(ImgRecherche('train.png'))
+    cord_pause = ImgRecherche('archerPause.png', 0.45)
+    cord_bat = ImgRecherche('batArcher.png', 0.9)
+    cord_collect = ImgRecherche('archer.png', 0.98)
+    if cord_pause != " " and cord_bat != " " or cord_collect != " ":
+        if cord_collect != " ":
+            Tap(cord_collect)
+
+        time.sleep(TRAPIDE)
+        Tap(ImgRecherche('batArcher.png', 0.9))
+        time.sleep(TRAPIDE)
+        Tap(ImgRecherche('formation.png', 0.90))
+        time.sleep(TLENT)
+        Tap(ImgRecherche('train.png', 0.90))
+    else:
+        print('Archer déjà en formation')
 
 
 def Cadeau():
     pix = (105, 208)
 
-ImgRecherche('train.png', 0.99)
+
+while True:
+    Collecte()
+    Archer()
+    Exploration()

@@ -1,6 +1,5 @@
 import time
 import tkinter as tk
-from riseOfKingdom import *
 
 def WindowsForm():
     #Création du Forms
@@ -13,11 +12,9 @@ def WindowsForm():
     
     def Selection():
         while (ckb1.get() == 1):
-            Collecte()
             window.update()
 
         while (ckb2.get() == 1):
-            Archer()
             window.update()
     
     ckb1 = tk.IntVar()
